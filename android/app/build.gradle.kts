@@ -29,7 +29,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.teriver.maiupload"
-        minSdk = 31
+        minSdk = 26
         targetSdk = 34
         versionName = appVersion
         versionCode = (appVersion + appVersionCode).replace(".", "").toInt()

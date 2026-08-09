@@ -1,0 +1,1 @@
+- Maiupload keystore 正确密码是 Maiupload2026!Release（build.ps1 第 39-40 行硬编码），任何 LOCAL_STORE_PASSWORD/LOCAL_KEY_PASSWORD 环境变量都会覆盖它；这俩旧变量已于 2026-08-09 从用户级注册表删除，若未来密码再脱节，直接删环境变量让 build.ps1 自己管密码
