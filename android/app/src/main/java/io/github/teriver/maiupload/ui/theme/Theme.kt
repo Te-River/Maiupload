@@ -1,5 +1,6 @@
 package io.github.teriver.maiupload.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -109,7 +110,12 @@ fun MaiuploadTheme(
     val colorScheme = when {
         dynamicColor -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            // dynamicColorScheme 需要 Android 12+（API 31），低版本回退到静态配色
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            } else {
+                if (darkTheme) darkScheme else lightScheme
+            }
         }
 
         darkTheme -> darkScheme

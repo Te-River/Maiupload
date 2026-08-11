@@ -62,7 +62,12 @@ public class LocalVpnService extends VpnService implements Runnable {
 
     public LocalVpnService() {
         ID++;
-        m_Handler = Handler.createAsync(Looper.getMainLooper());
+        // Handler.createAsync 需要 API 28+，低版本回退到普通 Handler，避免 NoSuchMethodError
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            m_Handler = Handler.createAsync(Looper.getMainLooper());
+        } else {
+            m_Handler = new Handler(Looper.getMainLooper());
+        }
         m_Packet = new byte[20000];
         m_IPHeader = new IPHeader(m_Packet, 0);
         m_TCPHeader = new TCPHeader(m_Packet, 20);
