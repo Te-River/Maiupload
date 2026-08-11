@@ -9,7 +9,7 @@ MaiProberPlus — Android app that intercepts WeChat game traffic via a local VP
 ## Layout
 
 - `android/` — the Android app (Gradle, Kotlin + Java). **All build/test/lint commands run from here.**
-  - `app/src/main/java/io/github/skydynamic/maiproberplus/`
+  - `app/src/main/java/io/github/teriver/maiupload/`
     - `vpn/` — **pure Java** VPN/TCP/DNS tunneling stack (LocalVpnService, TcpProxyServer, tunnels). Do not convert to Kotlin casually; it is self-contained and interop-sensitive.
     - `core/proxy/` — NanoHTTPD-based local HTTP server + `InterceptHandler` (the bridge called from Java VPN code into the Kotlin prober layer).
     - `core/prober/` — prober backends implementing `IProberUtil` (DivingFish, LXNS, Local), selected via the `ProberPlatform` enum.
@@ -30,7 +30,7 @@ MaiProberPlus — Android app that intercepts WeChat game traffic via a local VP
 | Lint | `./gradlew lint` |
 | Room schema dir | `app/schemas/` (configured in `app/build.gradle.kts` `room {}`) |
 
-JDK 21 / AGP 8.7.2 / Kotlin 2.0.21 / compileSdk 34 / minSdk 31. Versions are centralized in `android/gradle/libs.versions.toml` — edit there, not in `build.gradle.kts`.
+JDK 21 / AGP 8.7.2 / Kotlin 2.0.21 / compileSdk 34 / minSdk 26. Versions are centralized in `android/gradle/libs.versions.toml` — edit there, not in `build.gradle.kts`.
 
 Web tool: `cd web/image_id_finder && pnpm install && pnpm dev` (or `pnpm build`).
 
