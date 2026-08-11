@@ -38,17 +38,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 落雪 OAuth 接入：client_id 经环境变量注入，由一键构建脚本填充，
-        // 不上传脚本、不入仓库。缺失则构建中止。
-        // 使用 PKCE（公共客户端），无需 client_secret。
-        val lxnsOAuthClientId = System.getenv("LXNS_OAUTH_CLIENT_ID")
-        if (lxnsOAuthClientId.isNullOrEmpty()) {
-            throw GradleException(
-                "缺少 LXNS_OAUTH_CLIENT_ID 环境变量，" +
-                    "请通过一键构建脚本填充后再构建。"
-            )
-        }
-        buildConfigField("String", "LXNS_OAUTH_CLIENT_ID", "\"$lxnsOAuthClientId\"")
+        // 落雪 OAuth 接入：client_id 为公共客户端标识（PKCE 授权，无需 client_secret），
+        // 直接硬编码入 BuildConfig，无需环境变量注入。
+        buildConfigField("String", "LXNS_OAUTH_CLIENT_ID", "\"991a6c5c-6f9f-46c9-99a8-a7ff2c904ac3\"")
         // 全局默认 false，snapshot buildType 覆写为 true
         buildConfigField("boolean", "IS_SNAPSHOT", "false")
     }

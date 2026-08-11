@@ -7,11 +7,10 @@
 #   or in PowerShell:
 #     & D:\Github\MaiproberPlus-New\build.ps1 -rel
 #
-# Override via env vars: JAVA_HOME / ANDROID_HOME / LXNS_OAUTH_CLIENT_ID
+# Override via env vars: JAVA_HOME / ANDROID_HOME
 #
 # LXNS OAuth (PKCE, public client — no client_secret):
-#   Only client_id is injected into BuildConfig via env var.
-#   Set $env:LXNS_OAUTH_CLIENT_ID before running, or fill $LxnsOAuthClientId below.
+#   client_id is hardcoded in android/app/build.gradle.kts -> BuildConfig.
 #
 # Signing: uses android/maiupload-release.keystore (shared release cert).
 #   Keystore + passwords are committed to the repo so all builders produce
@@ -44,17 +43,6 @@ $ksPath = if ($env:LOCAL_KEYSTORE_PATH) { $env:LOCAL_KEYSTORE_PATH } else { $Key
 $ksAlias = if ($env:LOCAL_KEYSTORE_ALIAS) { $env:LOCAL_KEYSTORE_ALIAS } else { $KeyAlias }
 $sp = if ($env:LOCAL_STORE_PASSWORD) { $env:LOCAL_STORE_PASSWORD } else { $StorePass }
 $kp = if ($env:LOCAL_KEY_PASSWORD) { $env:LOCAL_KEY_PASSWORD } else { $KeyPass }
-
-# --- LXNS OAuth (PKCE, public client — no client_secret) ---
-$LxnsOAuthClientId = if ($env:LXNS_OAUTH_CLIENT_ID) { $env:LXNS_OAUTH_CLIENT_ID } else { "" }
-
-if (-not $LxnsOAuthClientId) {
-    Write-Host "[ERROR] LXNS OAuth client_id not set." -ForegroundColor Red
-    Write-Host "  Set `$env:LXNS_OAUTH_CLIENT_ID or fill LxnsOAuthClientId in this script." -ForegroundColor Red
-    return 1
-}
-$env:LXNS_OAUTH_CLIENT_ID = $LxnsOAuthClientId
-Write-Host ("[INFO] LXNS_OAUTH_CLIENT_ID={0}..." -f $LxnsOAuthClientId.Substring(0, [Math]::Min(8, $LxnsOAuthClientId.Length))) -ForegroundColor Cyan
 
 # --- Build target ---
 # -rel 开关（param 声明）：显式构建 Release（开发者正式发版用）

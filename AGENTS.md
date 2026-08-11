@@ -30,11 +30,7 @@ MaiProberPlus — Android app that intercepts WeChat game traffic via a local VP
 | Lint | `./gradlew lint` |
 | Room schema dir | `app/schemas/` (configured in `app/build.gradle.kts` `room {}`) |
 
-**构建前置要求：`LXNS_OAUTH_CLIENT_ID` 环境变量必须存在**（落雪 OAuth client_id）。
-`app/build.gradle.kts` 在配置阶段读取该变量，缺失即抛 `GradleException`，
-任何 Gradle 任务（含 `assembleSnapshot`、`getCurrentAppVersion`）都会中止。
-本地构建通过 `build.ps1` 或手动 `$env:LXNS_OAUTH_CLIENT_ID=...` 注入；
-CI 由 GitHub Actions secrets 注入（见 `androidCheck.yml` / `androidCI.yml` 的 env 配置）。
+**落雪 OAuth client_id 已硬编码**：`app/build.gradle.kts` 直接写入 `LXNS_OAUTH_CLIENT_ID` BuildConfig 字段（PKCE 公共客户端，无需 client_secret），不再读取环境变量，本地/CI 构建均无需注入。
 
 JDK 21 / AGP 8.7.2 / Kotlin 2.0.21 / compileSdk 34 / minSdk 26. Versions are centralized in `android/gradle/libs.versions.toml` — edit there, not in `build.gradle.kts`.
 
