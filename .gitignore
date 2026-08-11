@@ -17,3 +17,7 @@ local.properties
 /android/local-release.keystore
 /android/local-release.keystore.brf
 /android/release-release.keystore
+
+# better-harness 报告产物与 getCurrentAppVersion 构建产物
+/.qoder/
+/android/appVersion.txt

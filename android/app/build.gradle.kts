@@ -107,6 +107,14 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // 未 mock 的 android.util.Log 等调用返回默认值，避免
+            // 单元测试走异常分支时因 Log 崩溃（如 CheckUpdateTest）
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {

@@ -27,7 +27,26 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build APK with Gradle
+        env:
+          # 落雪 OAuth client_id，缺失时 build.gradle.kts 会在配置阶段抛 GradleException
+          LXNS_OAUTH_CLIENT_ID: ${{ secrets.LXNS_OAUTH_CLIENT_ID }}
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleSnapshot
+
+      - name: Unit tests with Gradle
+        env:
+          # 任何 Gradle 任务都需在配置阶段注入该变量，缺失会中止
+          LXNS_OAUTH_CLIENT_ID: ${{ secrets.LXNS_OAUTH_CLIENT_ID }}
+        run: |
+          cd android
+          ./gradlew test
+
+      - name: Lint with Gradle
+        env:
+          # 任何 Gradle 任务都需在配置阶段注入该变量，缺失会中止
+          LXNS_OAUTH_CLIENT_ID: ${{ secrets.LXNS_OAUTH_CLIENT_ID }}
+        run: |
+          cd android
+          ./gradlew lint
