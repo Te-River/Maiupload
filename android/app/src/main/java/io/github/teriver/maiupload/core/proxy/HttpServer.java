@@ -54,7 +54,8 @@ public class HttpServer extends NanoHTTPD {
     // To avoid fu***ing cache of wechat webview client
     private Response redirectToAuthUrlWithRandomParm(IHTTPSession session, String gameType) {
         Response r = newFixedLengthResponse(Response.Status.REDIRECT, MIME_HTML, "");
-        r.addHeader("Location", "http://" + "127.0.0.1:8284" + "/auth/" + gameType + "?random=" + System.currentTimeMillis());
+        r.addHeader("Location",
+                "http://" + "127.0.0.1:8284" + "/auth/" + gameType + "?random=" + System.currentTimeMillis());
         return r;
     }
 

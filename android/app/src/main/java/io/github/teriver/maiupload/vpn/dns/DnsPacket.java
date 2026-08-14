@@ -21,7 +21,8 @@ public class DnsPacket {
         packet.Size = buffer.limit();
         packet.Header = DnsHeader.FromBytes(buffer);
 
-        if (packet.Header.QuestionCount > 2 || packet.Header.ResourceCount > 50 || packet.Header.AResourceCount > 50 || packet.Header.EResourceCount > 50) {
+        if (packet.Header.QuestionCount > 2 || packet.Header.ResourceCount > 50 ||
+                packet.Header.AResourceCount > 50 || packet.Header.EResourceCount > 50) {
             return null;
         }
 
@@ -59,7 +60,8 @@ public class DnsPacket {
                 int pointer = buffer.get() & 0xFF;// ��8λ
                 pointer |= (len & 0x3F) << 8;// ��6λ
 
-                ByteBuffer newBuffer = ByteBuffer.wrap(buffer.array(), dnsHeaderOffset + pointer, dnsHeaderOffset + buffer.limit());
+                ByteBuffer newBuffer = ByteBuffer.wrap(buffer.array(),
+                        dnsHeaderOffset + pointer, dnsHeaderOffset + buffer.limit());
                 sb.append(ReadDomain(newBuffer, dnsHeaderOffset));
                 return sb.toString();
             } else {

@@ -42,7 +42,8 @@ public class LocalVpnService extends VpnService implements Runnable {
     public static boolean IsRunning = false;
     private static int ID;
     private static int LOCAL_IP;
-    private static final ConcurrentHashMap<onStatusChangedListener, Object> m_OnStatusChangedListeners = new ConcurrentHashMap<onStatusChangedListener, Object>();
+    private static final ConcurrentHashMap<onStatusChangedListener, Object> m_OnStatusChangedListeners =
+            new ConcurrentHashMap<onStatusChangedListener, Object>();
 
     private Thread m_VPNThread;
     private ParcelFileDescriptor m_VPNInterface;
@@ -243,8 +244,10 @@ public class LocalVpnService extends VpnService implements Runnable {
                     } else {
                         int portKey = tcpHeader.getSourcePort();
                         NatSession session = NatSessionManager.getSession(portKey);
-                        if (session == null || session.RemoteIP != ipHeader.getDestinationIP() || session.RemotePort != tcpHeader.getDestinationPort()) {
-                            session = NatSessionManager.createSession(portKey, ipHeader.getDestinationIP(), tcpHeader.getDestinationPort());
+                        if (session == null || session.RemoteIP != ipHeader.getDestinationIP() ||
+                                session.RemotePort != tcpHeader.getDestinationPort()) {
+                            session = NatSessionManager.createSession(portKey, ipHeader.getDestinationIP(),
+                                    tcpHeader.getDestinationPort());
                         }
 
                         session.LastNanoTime = System.nanoTime();
@@ -336,7 +339,8 @@ public class LocalVpnService extends VpnService implements Runnable {
     }
 
     private synchronized void dispose() {
-        onStatusChanged(ProxyConfig.Instance.getSessionName() + " " + getString(R.string.vpn_disconnected_status), false);
+        onStatusChanged(ProxyConfig.Instance.getSessionName() + " " +
+                getString(R.string.vpn_disconnected_status), false);
 
         IsRunning = false;
         GlobalViewModel.INSTANCE.setVpnServiceRunning(false);

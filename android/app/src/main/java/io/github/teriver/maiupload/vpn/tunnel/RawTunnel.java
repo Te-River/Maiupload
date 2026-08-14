@@ -13,7 +13,6 @@ public class RawTunnel extends Tunnel {
 
     public RawTunnel(SocketChannel innerChannel, Selector selector) throws Exception {
         super(innerChannel, selector);
-        // TODO Auto-generated constructor stub
     }
 
     @Override
@@ -23,14 +22,12 @@ public class RawTunnel extends Tunnel {
 
     @Override
     protected void beforeSend(ByteBuffer buffer) throws Exception {
-        // TODO Auto-generated method stub
-
+        // 原样透传，无需改写
     }
 
     @Override
     protected void afterReceived(ByteBuffer buffer) throws Exception {
-        // TODO Auto-generated method stub
-
+        // 原样透传，无需改写
     }
 
     @Override
@@ -40,8 +37,7 @@ public class RawTunnel extends Tunnel {
 
     @Override
     protected void onDispose() {
-        // TODO Auto-generated method stub
-
+        // 无需清理：原样透传隧道无自持资源
     }
 
 }

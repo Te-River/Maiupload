@@ -218,7 +218,8 @@ public class DnsProxy implements Runnable {
                 m_QueryArray.put(m_QueryID, state);
             }
 
-            InetSocketAddress remoteAddress = new InetSocketAddress(CommonMethods.ipIntToInet4Address(state.RemoteIP), state.RemotePort);
+            InetSocketAddress remoteAddress =
+                    new InetSocketAddress(CommonMethods.ipIntToInet4Address(state.RemoteIP), state.RemotePort);
             DatagramPacket packet = new DatagramPacket(udpHeader.m_Data, udpHeader.m_Offset + 8, dnsPacket.Size);
             packet.setSocketAddress(remoteAddress);
 

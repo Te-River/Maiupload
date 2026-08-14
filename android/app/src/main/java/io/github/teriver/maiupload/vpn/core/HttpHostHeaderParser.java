@@ -30,7 +30,8 @@ public class HttpHostHeaderParser {
         String headerString = new String(buffer, offset, count);
         String[] headerLines = headerString.split("\\r\\n");
         String requestLine = headerLines[0];
-        if (requestLine.startsWith("GET") || requestLine.startsWith("POST") || requestLine.startsWith("HEAD") || requestLine.startsWith("OPTIONS")) {
+        if (requestLine.startsWith("GET") || requestLine.startsWith("POST") ||
+                requestLine.startsWith("HEAD") || requestLine.startsWith("OPTIONS")) {
             for (int i = 1; i < headerLines.length; i++) {
                 String[] nameValueStrings = headerLines[i].split(":");
                 if (nameValueStrings.length == 2) {

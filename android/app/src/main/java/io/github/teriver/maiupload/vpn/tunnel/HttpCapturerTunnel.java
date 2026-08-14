@@ -77,6 +77,6 @@ public class HttpCapturerTunnel extends Tunnel {
 
     @Override
     protected void onDispose() {
-        // TODO Auto-generated method stub
+        // 无需清理：纯透传隧道无自持资源
     }
 }

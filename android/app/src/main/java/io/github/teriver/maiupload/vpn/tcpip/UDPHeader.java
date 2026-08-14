@@ -50,7 +50,6 @@ public class UDPHeader {
 
     @Override
     public String toString() {
-        // TODO Auto-generated method stub
         return String.format(Locale.ENGLISH, "%d->%d", getSourcePort() & 0xFFFF,
                 getDestinationPort() & 0xFFFF);
     }
