@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -18,12 +19,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,14 +37,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import io.github.teriver.maiupload.Application.Companion.application
+import io.github.teriver.maiupload.R
 import io.github.teriver.maiupload.core.utils.Release
 import io.github.teriver.maiupload.ui.compose.setting.TextButtonItem
 import io.github.teriver.maiupload.ui.compose.sync.FileDownloadMeta
@@ -420,6 +431,156 @@ fun CheckUpdateDialog(
                         modifier = Modifier.padding(8.dp),
                     ) {
                         Text("确认")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 解除分享锁对话框（MD3 AlertDialog 规范）。
+ *
+ * 布局：标题 titleLarge（onSurface）→ 说明 bodyMedium（onSurfaceVariant）→
+ * 口令输入框（仅导出方设了口令时显示，错误时 inline 红字提示，不用 Toast）→
+ * 操作区右对齐：左「取消」、中「清除并解除」（error 色，破坏性，需二次确认）、右「确认解除」。
+ *
+ * @param title 对话框标题（如 "解除隐藏Rival配置"）
+ * @param description 说明文案
+ * @param hasCode 导出方是否设了口令；false 时隐藏口令框与「清除并解除」按钮，仅确认即可解除
+ * @param clearActionName 清除解除按钮文案（如 "清除Rival配置并解除"）
+ * @param clearActionHint 清除解除的后果说明（二次确认弹窗展示）
+ * @param onUnlock 口令校验回调：传入输入的口令，返回是否校验通过；
+ *                 未设口令（hasCode=false）时传入 ""，应直接返回 true；
+ *                 返回 true 后调用方负责解除锁并关闭弹窗。
+ * @param onClear 用户确认清除相关配置后回调（调用方清除数据并解除锁）
+ * @param onDismiss 关闭弹窗（取消）
+ */
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+fun UnlockDialog(
+    title: String,
+    description: String,
+    hasCode: Boolean,
+    clearActionName: String = "",
+    clearActionHint: String = "",
+    onUnlock: (String) -> Boolean,
+    onClear: () -> Unit = {},
+    onDismiss: () -> Unit
+) {
+    var code by remember { mutableStateOf("") }
+    var codeError by remember { mutableStateOf(false) }
+    var codeHidden by remember { mutableStateOf(true) }
+    var showClearConfirm by remember { mutableStateOf(false) }
+
+    if (showClearConfirm) {
+        ConfirmDialog(
+            info = "$clearActionName？\n$clearActionHint",
+            onRequest = {
+                showClearConfirm = false
+                onClear()
+            },
+            onDismiss = { showClearConfirm = false }
+        )
+        return
+    }
+
+    BasicAlertDialog(
+        modifier = Modifier.wrapContentSize(),
+        onDismissRequest = onDismiss,
+    ) {
+        Card(
+            modifier = Modifier
+                .padding(8.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = getCardColor())
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = title,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = description,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (hasCode) {
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = code,
+                        onValueChange = {
+                            code = it
+                            codeError = false
+                        },
+                        singleLine = true,
+                        isError = codeError,
+                        label = { Text("解除口令") },
+                        visualTransformation = if (codeHidden) {
+                            PasswordVisualTransformation()
+                        } else {
+                            VisualTransformation.None
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { codeHidden = !codeHidden }) {
+                                Icon(
+                                    painterResource(
+                                        if (codeHidden) R.drawable.visibility_24px
+                                        else R.drawable.visibility_off_24px
+                                    ),
+                                    contentDescription = if (codeHidden) "显示口令" else "隐藏口令",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        supportingText = if (codeError) {
+                            { Text("口令错误，无法解除") }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    if (hasCode) {
+                        TextButton(
+                            onClick = { showClearConfirm = true },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text(clearActionName)
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            if (hasCode) {
+                                if (onUnlock(code.trim())) {
+                                    onDismiss()
+                                } else {
+                                    codeError = true
+                                }
+                            } else {
+                                onUnlock("")
+                                onDismiss()
+                            }
+                        }
+                    ) {
+                        Text("确认解除")
                     }
                 }
             }

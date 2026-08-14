@@ -6,6 +6,7 @@ import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,6 +16,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,11 +35,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +63,7 @@ import androidx.core.text.isDigitsOnly
 import androidx.lifecycle.viewModelScope
 import io.github.teriver.maiupload.Application.Companion.application
 import io.github.teriver.maiupload.BuildConfig
+import io.github.teriver.maiupload.core.config.ConfigStorage
 import io.github.teriver.maiupload.core.config.ConfigTransfer
 import io.github.teriver.maiupload.core.prober.rival.RivalSyncUtil
 import io.github.teriver.maiupload.GlobalViewModel
@@ -69,6 +78,7 @@ import io.github.teriver.maiupload.ui.component.ConfirmDialog
 import io.github.teriver.maiupload.ui.component.DiffChooseDialog
 import io.github.teriver.maiupload.ui.component.DownloadDialog
 import io.github.teriver.maiupload.ui.component.MultiObjectSelectDialog
+import io.github.teriver.maiupload.ui.component.UnlockDialog
 import io.github.teriver.maiupload.ui.component.WindowInsetsSpacer
 import io.github.teriver.maiupload.ui.compose.scores.resources
 import io.github.teriver.maiupload.ui.compose.setting.components.ScoreDisplayExampleLarge
@@ -76,6 +86,7 @@ import io.github.teriver.maiupload.ui.compose.setting.components.ScoreDisplayExa
 import io.github.teriver.maiupload.ui.compose.setting.components.ScoreDisplayExampleSmall
 import io.github.teriver.maiupload.ui.compose.setting.components.SettingScoreStyleExampleColorOverlay
 import io.github.teriver.maiupload.ui.compose.setting.components.SettingScoreStyleExampleTextShadow
+import io.github.teriver.maiupload.ui.theme.getCardColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -106,6 +117,15 @@ fun SettingCompose() {
     var showSelectShougouColorDialog by remember { mutableStateOf(false) }
 
     var showRivalSetting by remember { mutableStateOf(false) }
+
+    // 导出配置对话框：分享锁选项（隐藏Rival配置 / 禁止二次分享）+ 各自选填解除口令
+    var showExportConfigDialog by remember { mutableStateOf(false) }
+    var exportHideRival by remember { mutableStateOf(false) }
+    var exportNoReshare by remember { mutableStateOf(false) }
+    var exportRivalUnlockCode by remember { mutableStateOf("") }
+    var exportNoReshareUnlockCode by remember { mutableStateOf("") }
+    // 解除「禁止二次分享」锁
+    var showUnlockNoReshareDialog by remember { mutableStateOf(false) }
 
     var showConfirmUpdateSongResourceDialog by remember { mutableStateOf(false) }
     var showUpdateSongResourceDialog by remember { mutableStateOf(false) }
@@ -169,6 +189,97 @@ fun SettingCompose() {
                     showSelectShougouColorDialog = false
                 },
                 objects = maimaiShougouColorList,
+            )
+        }
+        showExportConfigDialog -> {
+            val exportContext = LocalContext.current
+            ExportConfigDialog(
+                hideRival = exportHideRival,
+                noReshare = exportNoReshare,
+                rivalUnlockCode = exportRivalUnlockCode,
+                noReshareUnlockCode = exportNoReshareUnlockCode,
+                onHideRivalChange = { exportHideRival = it },
+                onNoReshareChange = { exportNoReshare = it },
+                onRivalUnlockCodeChange = { exportRivalUnlockCode = it },
+                onNoReshareUnlockCodeChange = { exportNoReshareUnlockCode = it },
+                onExport = {
+                    showExportConfigDialog = false
+                    GlobalViewModel.viewModelScope.launch(Dispatchers.IO) {
+                        val path = ConfigTransfer.exportToFile(
+                            hideRivalConfig = exportHideRival,
+                            noReshare = exportNoReshare,
+                            rivalUnlockCode = exportRivalUnlockCode,
+                            noReshareUnlockCode = exportNoReshareUnlockCode,
+                        )
+                        withContext(Dispatchers.Main) {
+                            if (path.isNotEmpty()) {
+                                val file = java.io.File(path)
+                                val uri = FileProvider.getUriForFile(
+                                    application,
+                                    application.packageName + ".fileprovider",
+                                    file
+                                )
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/json"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    putExtra(Intent.EXTRA_TITLE, "Maiupload 配置")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                exportContext.startActivity(
+                                    Intent.createChooser(shareIntent, "分享配置文件").apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                )
+                            } else {
+                                sendMessageToUi("导出失败")
+                            }
+                        }
+                    }
+                },
+                onDismiss = { showExportConfigDialog = false }
+            )
+        }
+        showUnlockNoReshareDialog -> {
+            UnlockDialog(
+                title = "解除禁止二次分享",
+                description = "输入导出方提供的解除口令；忘记口令可清除相关配置解除（将恢复默认设置）。",
+                hasCode = config.noReshareUnlockCodeHash.isNotEmpty(),
+                clearActionName = "清除配置并解除",
+                clearActionHint = "将恢复所有设置为默认值（含 Token 等），此操作不可撤销",
+                onUnlock = { input ->
+                    val ok = ConfigTransfer.verifyUnlockCode(input, config.noReshareUnlockCodeHash)
+                    if (ok) {
+                        config.noReshare = false
+                        config.noReshareUnlockCodeHash = ""
+                        application.configManager.save()
+                        sendMessageToUi("已解除禁止二次分享")
+                    }
+                    ok
+                },
+                onClear = {
+                    // 清除相关配置项：就地恢复默认值（保持本地 config 引用有效），并解除锁
+                    val fresh = ConfigStorage()
+                    config.divingfishToken = fresh.divingfishToken
+                    config.lxnsToken = fresh.lxnsToken
+                    config.lxnsOAuthAccessToken = fresh.lxnsOAuthAccessToken
+                    config.lxnsOAuthRefreshToken = fresh.lxnsOAuthRefreshToken
+                    config.lxnsOAuthAccessTokenExpireAt = fresh.lxnsOAuthAccessTokenExpireAt
+                    config.lxnsOAuthPkceVerifier = fresh.lxnsOAuthPkceVerifier
+                    config.rivalSyncConfig = fresh.rivalSyncConfig
+                    config.syncConfig = fresh.syncConfig
+                    config.localConfig = fresh.localConfig
+                    config.userInfo = fresh.userInfo
+                    config.scoreDisplayType = fresh.scoreDisplayType
+                    config.scoreStyleType = fresh.scoreStyleType
+                    config.lxnsRomVersionThreshold = fresh.lxnsRomVersionThreshold
+                    config.hideRivalConfig = false
+                    config.noReshare = false
+                    config.rivalUnlockCodeHash = ""
+                    config.noReshareUnlockCodeHash = ""
+                    application.configManager.save()
+                    sendMessageToUi("已清除配置并解除禁止二次分享")
+                },
+                onDismiss = { showUnlockNoReshareDialog = false }
             )
         }
     }
@@ -663,6 +774,18 @@ fun SettingCompose() {
                             "清除缓存成功, 释放了${clearSize / 1024 / 1024}MB缓存",
                         )
                     }
+                    if (config.noReshare) {
+                        TextButtonItem(
+                            modifier = Modifier
+                                .padding(start = 15.dp, top = 5.dp, end = 15.dp, bottom = 5.dp)
+                                .fillMaxWidth()
+                                .wrapContentHeight(),
+                            title = "解除禁止二次分享",
+                            description = "该配置禁止二次分享；输入口令或清除相关配置后可恢复导出"
+                        ) {
+                            showUnlockNoReshareDialog = true
+                        }
+                    }
                 }
             }
             item {
@@ -686,41 +809,19 @@ fun SettingCompose() {
                         thickness = 1.dp
                     )
 
-                    // 导出配置：写入 filesDir，用 ACTION_SEND 分享给他人
-                    val exportContext = LocalContext.current
+                    // 导出配置：写入 filesDir，用 ACTION_SEND 分享给他人（禁止二次分享时拦截）
                     TextButtonItem(
                         modifier = Modifier
                             .padding(start = 15.dp, top = 5.dp, end = 15.dp, bottom = 5.dp)
                             .fillMaxWidth()
                             .wrapContentHeight(),
                         title = "导出配置",
-                        description = "导出成绩抓取/展示/本地设置与用户信息，分享给他人"
+                        description = "导出成绩抓取/展示/本地设置与用户信息（不含Userid），可选隐藏Rival/禁止二次分享"
                     ) {
-                        GlobalViewModel.viewModelScope.launch(Dispatchers.IO) {
-                            val path = ConfigTransfer.exportToFile()
-                            withContext(Dispatchers.Main) {
-                                if (path.isNotEmpty()) {
-                                    val file = java.io.File(path)
-                                    val uri = FileProvider.getUriForFile(
-                                        application,
-                                        application.packageName + ".fileprovider",
-                                        file
-                                    )
-                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "application/json"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        putExtra(Intent.EXTRA_TITLE, "Maiupload 配置")
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    exportContext.startActivity(
-                                        Intent.createChooser(shareIntent, "分享配置文件").apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                    )
-                                } else {
-                                    sendMessageToUi("导出失败")
-                                }
-                            }
+                        if (config.noReshare) {
+                            sendMessageToUi("该配置禁止二次分享，无法导出")
+                        } else {
+                            showExportConfigDialog = true
                         }
                     }
 
@@ -869,5 +970,145 @@ fun SettingCompose() {
                 .align(Alignment.TopCenter)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
         )
+    }
+}
+
+/**
+ * 导出配置对话框（MD3 AlertDialog 规范）：
+ * 标题 titleLarge → 说明 bodyMedium（onSurfaceVariant）→ 两个分享锁复选框行
+ * （勾选后 AnimatedVisibility 展开各自选填的解除口令输入框）→ 操作区右对齐（取消/导出）。
+ *
+ * @param hideRival 「隐藏Rival配置」勾选态：导入方 Rival 字段（含 Userid）永久隐藏显示，同步不受影响
+ * @param noReshare 「禁止二次分享」勾选态：导入方无法再次导出该配置
+ * @param rivalUnlockCode / noReshareUnlockCode 各自锁的选填解除口令（留空 = 解除仅需确认）
+ */
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ExportConfigDialog(
+    hideRival: Boolean,
+    noReshare: Boolean,
+    rivalUnlockCode: String,
+    noReshareUnlockCode: String,
+    onHideRivalChange: (Boolean) -> Unit,
+    onNoReshareChange: (Boolean) -> Unit,
+    onRivalUnlockCodeChange: (String) -> Unit,
+    onNoReshareUnlockCodeChange: (String) -> Unit,
+    onExport: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    BasicAlertDialog(
+        modifier = Modifier.fillMaxWidth(),
+        onDismissRequest = onDismiss,
+    ) {
+        Card(
+            modifier = Modifier
+                .padding(8.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = getCardColor())
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "导出配置",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = "所有导出文件均不含 Userid。以下选项随文件带给导入方：",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                // 「隐藏Rival配置」复选框 + 选填解除口令
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = hideRival,
+                        onCheckedChange = onHideRivalChange
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "隐藏Rival配置",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "导入方 Rival 字段（含 Userid）将永久隐藏显示，同步功能不受影响",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                AnimatedVisibility(visible = hideRival) {
+                    OutlinedTextField(
+                        value = rivalUnlockCode,
+                        onValueChange = onRivalUnlockCodeChange,
+                        singleLine = true,
+                        label = { Text("解除口令（选填）", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                // 「禁止二次分享」复选框 + 选填解除口令
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = noReshare,
+                        onCheckedChange = onNoReshareChange
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "禁止二次分享",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "导入方将无法再次导出该配置",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                AnimatedVisibility(visible = noReshare) {
+                    OutlinedTextField(
+                        value = noReshareUnlockCode,
+                        onValueChange = onNoReshareUnlockCodeChange,
+                        singleLine = true,
+                        label = { Text("解除口令（选填）", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    TextButton(onClick = onExport) {
+                        Text("导出")
+                    }
+                }
+            }
+        }
     }
 }
