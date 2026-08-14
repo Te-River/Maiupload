@@ -201,9 +201,12 @@ object RivalSyncUtil {
             cfg.userId = data.userID.toString()
             cfg.token = data.token ?: ""
             application.configManager.save()
-            ErrorLog.logSync("Rival", "鉴权成功，userId=${data.userID}")
-            DebugLog.log("I", "Rival", "鉴权成功，userId=${data.userID}")
-            sendMessageToUi("鉴权成功，userId=${data.userID}")
+            // 隐藏Rival配置锁生效时：UI 与日志均不显示 userId（含 Useid 永久隐藏，日志可被分享查看也属泄露面）
+            val hideRival = application.configManager.config.hideRivalConfig
+            val authMsg = if (hideRival) "鉴权成功" else "鉴权成功，userId=${data.userID}"
+            ErrorLog.logSync("Rival", authMsg)
+            DebugLog.log("I", "Rival", authMsg)
+            sendMessageToUi(authMsg)
             true
         } catch (e: Exception) {
             ErrorLog.logError(TAG, "鉴权异常: ${e.message}", e)
