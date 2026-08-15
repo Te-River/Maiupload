@@ -78,7 +78,8 @@ object ConfigTransfer {
      *
      * 分享锁（导出方可选，随文件带给导入方）：
      * - [hideRivalConfig]：导入后 Rival 设置页字段永久隐藏显示（含 userId），但同步调用不受影响；
-     * - 携带 SHA-256 解除口令哈希，空串表示导出方未设口令、解除仅需确认。
+     * - [noReshare]：导入后禁止再次导出配置（防二次分享）；
+     * - 两个锁各自携带 SHA-256 解除口令哈希，空串表示导出方未设口令、解除仅需确认。
      */
     @Serializable
     data class ExportableConfig(
@@ -94,9 +95,12 @@ object ConfigTransfer {
         var userInfo: UserInfo = UserInfo(),
         // 5. 分享锁
         var hideRivalConfig: Boolean = false,
+        var noReshare: Boolean = false,
         // 双通道并存：SHA-256 哈希（快速校验）+ PBKDF2(hash)+AES-GCM 加密字段（以口令 hash 为准解密）
         var rivalUnlockCodeHash: String = "",
+        var noReshareUnlockCodeHash: String = "",
         var rivalUnlockData: String = "",
+        var noReshareUnlockData: String = "",
     )
 
     @Serializable
@@ -241,12 +245,15 @@ object ConfigTransfer {
      * 避免通过配置文件泄露玩家账号标识。
      *
      * @param hideRivalConfig 勾选「隐藏Rival配置」：随文件携带该锁，导入方 Rival 字段永久隐藏显示；
-     * @param rivalUnlockCode 锁的解除口令（可留空 = 解除仅需确认），
+     * @param noReshare 勾选「禁止二次分享」：随文件携带该锁，导入方无法再次导出；
+     * @param rivalUnlockCode / noReshareUnlockCode 各自锁的解除口令（可留空 = 解除仅需确认），
      * 导出时只存 SHA-256 哈希。
      */
     private fun snapshot(
         hideRivalConfig: Boolean = false,
+        noReshare: Boolean = false,
         rivalUnlockCode: String = "",
+        noReshareUnlockCode: String = "",
     ): ExportableConfig {
         val cfg = application.configManager.config
         return ExportableConfig(
@@ -262,8 +269,11 @@ object ConfigTransfer {
             userInfo = cfg.userInfo,
             // 5. 分享锁（双通道并存：哈希 + 加密字段）
             hideRivalConfig = hideRivalConfig,
+            noReshare = noReshare,
             rivalUnlockCodeHash = hashUnlockCode(rivalUnlockCode),
+            noReshareUnlockCodeHash = hashUnlockCode(noReshareUnlockCode),
             rivalUnlockData = encryptUnlockData(rivalUnlockCode),
+            noReshareUnlockData = encryptUnlockData(noReshareUnlockCode),
         )
     }
 
@@ -281,16 +291,18 @@ object ConfigTransfer {
     @OptIn(ExperimentalSerializationApi::class)
     fun export(
         hideRivalConfig: Boolean = false,
+        noReshare: Boolean = false,
         rivalUnlockCode: String = "",
+        noReshareUnlockCode: String = "",
     ): String {
-        val payload = snapshot(hideRivalConfig, rivalUnlockCode)
+        val payload = snapshot(hideRivalConfig, noReshare, rivalUnlockCode, noReshareUnlockCode)
         // ProtoBuf 编码：字段名换数字 tag，源头比 JSON 小约 40%；
         // encodeDefaults=false 保证未勾选锁/空口令等默认字段不落盘（体积最小化）
         val payloadBytes = protoBuf.encodeToByteArray(ExportableConfig.serializer(), payload)
         val encryptedPayload = aesGcmEncryptBytes(payloadBytes, compress = true, legacyBase64 = false)
         val hmac = hmacSha256(encryptedPayload)
         // 带分享锁 = v3（旧版应用拒绝，防止锁字段被静默忽略）；无锁 = v2（旧版兼容）
-        val version = if (hideRivalConfig) 3 else 2
+        val version = if (hideRivalConfig || noReshare) 3 else 2
         val bundle = ExportBundle(
             version = version,
             exportedAt = System.currentTimeMillis(),
@@ -308,10 +320,12 @@ object ConfigTransfer {
      */
     fun exportToFile(
         hideRivalConfig: Boolean = false,
+        noReshare: Boolean = false,
         rivalUnlockCode: String = "",
+        noReshareUnlockCode: String = "",
     ): String {
         return try {
-            val content = export(hideRivalConfig, rivalUnlockCode)
+            val content = export(hideRivalConfig, noReshare, rivalUnlockCode, noReshareUnlockCode)
             val file = java.io.File(application.filesDir, "maiupload_config_export.json")
             file.writeText(content, Charsets.UTF_8)
             file.absolutePath
@@ -405,7 +419,7 @@ object ConfigTransfer {
      * 从 JSON 字符串导入配置。HMAC 验签 + AES-GCM 解密都通过才接受。
      * 只覆盖用户自定义设置，**不动** token / OAuth 令牌 / Rival 鉴权参数。
      *
-     * 分享锁（hideRivalConfig / 口令哈希）**只置位、不解除**：
+     * 分享锁（hideRivalConfig / noReshare / 口令哈希）**只置位、不解除**：
      * 文件携带锁则上锁；文件不带锁也**不会**清除本机已有锁，保证"永久锁定"语义，
      * 解除只能走设置页的口令校验或清除相关配置。
      *
@@ -466,8 +480,11 @@ object ConfigTransfer {
             cfg.userInfo = payloadObj.userInfo
             // 5. 分享锁：只置位、不解除（导入普通配置不会清除本机已有锁）
             if (payloadObj.hideRivalConfig) cfg.hideRivalConfig = true
+            if (payloadObj.noReshare) cfg.noReshare = true
             if (payloadObj.rivalUnlockCodeHash.isNotEmpty()) cfg.rivalUnlockCodeHash = payloadObj.rivalUnlockCodeHash
+            if (payloadObj.noReshareUnlockCodeHash.isNotEmpty()) cfg.noReshareUnlockCodeHash = payloadObj.noReshareUnlockCodeHash
             if (payloadObj.rivalUnlockData.isNotEmpty()) cfg.rivalUnlockData = payloadObj.rivalUnlockData
+            if (payloadObj.noReshareUnlockData.isNotEmpty()) cfg.noReshareUnlockData = payloadObj.noReshareUnlockData
             application.configManager.save()
 
             if (versionTooHigh) ImportResult.VersionTooHigh(bundle.appVersion)
