@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -457,7 +459,7 @@ fun CheckUpdateDialog(
  * @param onDismiss 关闭弹窗（取消）
  */
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 fun UnlockDialog(
     title: String,
     description: String,
@@ -553,9 +555,18 @@ fun UnlockDialog(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                } else {
+                    // 导出方未设解除口令：无法解除（永久锁定），仅提示，不提供任何解除入口
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "该配置未设置解除口令，无法解除。",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
-                Row(
+                // FlowRow：操作区右对齐，空间不足（如长按钮文案）时自动折行，避免按钮被挤压换行
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
@@ -571,22 +582,17 @@ fun UnlockDialog(
                         ) {
                             Text(clearActionName)
                         }
-                    }
-                    TextButton(
-                        onClick = {
-                            if (hasCode) {
+                        TextButton(
+                            onClick = {
                                 if (onUnlock(code.trim())) {
                                     onDismiss()
                                 } else {
                                     codeError = true
                                 }
-                            } else {
-                                onUnlock("")
-                                onDismiss()
                             }
+                        ) {
+                            Text("确认解除")
                         }
-                    ) {
-                        Text("确认解除")
                     }
                 }
             }
