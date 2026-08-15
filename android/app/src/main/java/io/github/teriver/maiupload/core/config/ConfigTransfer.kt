@@ -59,6 +59,14 @@ object ConfigTransfer {
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
+     * ProtoBuf 实例：**显式关闭 encodeDefaults**（不编码等于默认值的字段）。
+     * 这是 v3 体积最小化的关键——未勾选的锁、空口令哈希/密文等空字段一律不落盘，
+     * 无锁导出的 v2 文件与旧版体积一致，不因新增字段膨胀。
+     * 显式声明防止 kotlinx.serialization 未来默认值变更导致体积回退。
+     */
+    private val protoBuf = ProtoBuf { encodeDefaults = false }
+
+    /**
      * 可导出的配置子集 —— 按四大类完整备份：
      * 1. 成绩抓取设置：SyncConfig + RivalSyncConfig（含 userId/token 缓存）
      * 2. 成绩展示设置：ScoreDisplayType + ScoreStyleType
@@ -113,6 +121,11 @@ object ConfigTransfer {
          * 已正常导入（未定义字段自动忽略），但提示用户注意兼容性。
          */
         data class VersionTooHigh(val bundleAppVersion: String) : ImportResult()
+        /**
+         * 导入文件的**格式版本**高于当前应用支持的最大版本（当前支持 v1/v2/v3）。
+         * 文件无法解析，需升级应用后才能导入。
+         */
+        data class VersionTooNew(val bundleVersion: Int) : ImportResult()
         /** 文件损坏、格式不符、HMAC 验签失败、解密失败等。 */
         object Corrupted : ImportResult()
     }
@@ -283,8 +296,9 @@ object ConfigTransfer {
         noReshareUnlockCode: String = "",
     ): String {
         val payload = snapshot(hideRivalConfig, noReshare, rivalUnlockCode, noReshareUnlockCode)
-        // ProtoBuf 编码：字段名换数字 tag，源头比 JSON 小约 40%
-        val payloadBytes = ProtoBuf.encodeToByteArray(ExportableConfig.serializer(), payload)
+        // ProtoBuf 编码：字段名换数字 tag，源头比 JSON 小约 40%；
+        // encodeDefaults=false 保证未勾选锁/空口令等默认字段不落盘（体积最小化）
+        val payloadBytes = protoBuf.encodeToByteArray(ExportableConfig.serializer(), payload)
         val encryptedPayload = aesGcmEncryptBytes(payloadBytes, compress = true, legacyBase64 = false)
         val hmac = hmacSha256(encryptedPayload)
         // 带分享锁 = v3（旧版应用拒绝，防止锁字段被静默忽略）；无锁 = v2（旧版兼容）
@@ -421,9 +435,10 @@ object ConfigTransfer {
             //   v1 = 旧格式（JSON 明文，无压缩）—— legacy 兼容
             //   v2 = 新格式（ProtoBuf 编码 + deflate raw 压缩，无分享锁）
             //   v3 = 新格式 + 分享锁（隐藏Rival配置 / 禁止二次分享）
-            //   其他版本拒绝
-            when (bundle.version) {
-                1, 2, 3 -> Unit
+            //   高于当前支持版本 → 提示升级应用；非法版本 → 视为损坏
+            when {
+                bundle.version in 1..3 -> Unit
+                bundle.version > 3 -> return ImportResult.VersionTooNew(bundle.version)
                 else -> return ImportResult.Corrupted
             }
             if (bundle.payload.isEmpty()) return ImportResult.Corrupted

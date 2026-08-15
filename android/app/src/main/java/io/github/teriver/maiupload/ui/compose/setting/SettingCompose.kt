@@ -852,6 +852,9 @@ fun SettingCompose() {
                                         is ConfigTransfer.ImportResult.VersionTooHigh ->
                                             "已导入，但注意：该配置来自更高版本的应用（v${result.bundleAppVersion}），" +
                                             "当前版本 v${BuildConfig.VERSION_NAME}，未识别的字段已自动忽略。"
+                                        is ConfigTransfer.ImportResult.VersionTooNew ->
+                                            "导入失败：该配置文件格式版本（v${result.bundleVersion}）高于当前应用支持的最高版本（v3），" +
+                                            "请升级应用后再导入。"
                                         ConfigTransfer.ImportResult.Corrupted ->
                                             "导入失败：文件损坏或签名不符"
                                     }
