@@ -92,13 +92,10 @@ data class StoredConfig(
     var lxnsRomVersionThreshold: Int = 25500,
     // 配置分享锁：导入带锁的配置文件后置位，仅能通过正确口令或清除相关配置解除。
     var hideRivalConfig: Boolean = false,
-    var noReshare: Boolean = false,
     // 解除口令的 SHA-256 哈希（空串 = 导出方未设口令，解除仅需确认）。
     var rivalUnlockCodeHash: String = "",
-    var noReshareUnlockCodeHash: String = "",
     // 解除口令的加密字段（PBKDF2(口令hash)+AES-GCM 密文，双通道之一，以口令 hash 为准解密）。
     var rivalUnlockData: String = "",
-    var noReshareUnlockData: String = "",
 ) {
     companion object {
         fun fromConfig(cfg: ConfigStorage): StoredConfig = StoredConfig(
@@ -120,11 +117,8 @@ data class StoredConfig(
             scoreStyleType = cfg.scoreStyleType,
             lxnsRomVersionThreshold = cfg.lxnsRomVersionThreshold,
             hideRivalConfig = cfg.hideRivalConfig,
-            noReshare = cfg.noReshare,
             rivalUnlockCodeHash = cfg.rivalUnlockCodeHash,
-            noReshareUnlockCodeHash = cfg.noReshareUnlockCodeHash,
             rivalUnlockData = cfg.rivalUnlockData,
-            noReshareUnlockData = cfg.noReshareUnlockData,
         )
     }
 
@@ -153,11 +147,8 @@ data class StoredConfig(
             scoreStyleType = scoreStyleType,
             lxnsRomVersionThreshold = lxnsRomVersionThreshold,
             hideRivalConfig = hideRivalConfig,
-            noReshare = noReshare,
             rivalUnlockCodeHash = rivalUnlockCodeHash,
-            noReshareUnlockCodeHash = noReshareUnlockCodeHash,
             rivalUnlockData = rivalUnlockData,
-            noReshareUnlockData = noReshareUnlockData,
         )
     }
 }
@@ -195,13 +186,10 @@ data class ConfigStorage(
     var lxnsRomVersionThreshold: Int = 25500,
     // 配置分享锁：导入带锁的配置文件后置位，仅能通过正确口令或清除相关配置解除。
     var hideRivalConfig: Boolean = false,
-    var noReshare: Boolean = false,
     // 解除口令的 SHA-256 哈希（空串 = 导出方未设口令，解除仅需确认）。
     var rivalUnlockCodeHash: String = "",
-    var noReshareUnlockCodeHash: String = "",
     // 解除口令的加密字段（PBKDF2(口令hash)+AES-GCM 密文，双通道之一，以口令 hash 为准解密）。
     var rivalUnlockData: String = "",
-    var noReshareUnlockData: String = "",
 )
 
 /**
