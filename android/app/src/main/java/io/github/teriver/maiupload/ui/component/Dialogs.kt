@@ -540,10 +540,16 @@ fun UnlockDialog(
                                 )
                             }
                         },
-                        supportingText = if (codeError) {
-                            { Text("口令错误，无法解除") }
-                        } else {
-                            null
+                        supportingText = {
+                            // MD3：supportingText 区域常驻占位，避免错误提示出现/消失时输入框高度抖动
+                            Text(
+                                text = if (codeError) "口令错误，无法解除" else " ",
+                                color = if (codeError) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0f)
+                                }
+                            )
                         },
                         modifier = Modifier.fillMaxWidth()
                     )

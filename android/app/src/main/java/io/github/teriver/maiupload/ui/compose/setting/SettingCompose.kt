@@ -1037,7 +1037,11 @@ private fun ExportConfigDialog(
                         checked = hideRival,
                         onCheckedChange = onHideRivalChange
                     )
-                    Column(Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 8.dp)
+                    ) {
                         Text(
                             text = "隐藏Rival配置",
                             color = MaterialTheme.colorScheme.onSurface,
@@ -1074,7 +1078,11 @@ private fun ExportConfigDialog(
                         checked = noReshare,
                         onCheckedChange = onNoReshareChange
                     )
-                    Column(Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 8.dp)
+                    ) {
                         Text(
                             text = "禁止二次分享",
                             color = MaterialTheme.colorScheme.onSurface,

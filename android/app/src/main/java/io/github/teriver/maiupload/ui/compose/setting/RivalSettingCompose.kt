@@ -123,7 +123,7 @@ fun RivalSettingCompose(onBack: () -> Unit) {
                 Text(
                     "Rival 配置已隐藏（导入配置时启用）：字段不显示具体值，但同步功能不受影响。",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
