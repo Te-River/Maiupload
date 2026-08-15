@@ -470,7 +470,13 @@ object ConfigTransfer {
             val cfg = application.configManager.config
             // 1. 成绩抓取设置
             cfg.syncConfig = payloadObj.syncConfig
-            cfg.rivalSyncConfig = payloadObj.rivalSyncConfig
+            // Rival 配置合并：本地已有 userId（QR 鉴权所得）时不被导入覆盖，
+            // 导出文件本就不含 userId（无条件剥离），此处保证导入方自己的鉴权不丢失。
+            cfg.rivalSyncConfig = if (cfg.rivalSyncConfig.userId.isNotBlank()) {
+                payloadObj.rivalSyncConfig.copy(userId = cfg.rivalSyncConfig.userId)
+            } else {
+                payloadObj.rivalSyncConfig
+            }
             // 2. 成绩展示设置
             cfg.scoreDisplayType = payloadObj.scoreDisplayType
             cfg.scoreStyleType = payloadObj.scoreStyleType

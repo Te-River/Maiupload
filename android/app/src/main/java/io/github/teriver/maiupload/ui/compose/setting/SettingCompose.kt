@@ -63,8 +63,8 @@ import androidx.core.text.isDigitsOnly
 import androidx.lifecycle.viewModelScope
 import io.github.teriver.maiupload.Application.Companion.application
 import io.github.teriver.maiupload.BuildConfig
-import io.github.teriver.maiupload.core.config.ConfigStorage
 import io.github.teriver.maiupload.core.config.ConfigTransfer
+import io.github.teriver.maiupload.core.config.RivalSyncConfig
 import io.github.teriver.maiupload.core.prober.rival.RivalSyncUtil
 import io.github.teriver.maiupload.GlobalViewModel
 import io.github.teriver.maiupload.core.config.ScoreDisplayType
@@ -242,10 +242,10 @@ fun SettingCompose() {
         showUnlockNoReshareDialog -> {
             UnlockDialog(
                 title = "解除禁止二次分享",
-                description = "输入导出方提供的解除口令；忘记口令可清除相关配置解除（将恢复默认设置）。",
+                description = "输入导出方提供的解除口令；忘记口令可清除相关配置解除（仅清空 Rival 配置，保留 Token/OAuth 凭据）。",
                 hasCode = config.noReshareUnlockCodeHash.isNotEmpty() || config.noReshareUnlockData.isNotEmpty(),
                 clearActionName = "清除并解除",
-                clearActionHint = "将恢复所有设置为默认值（含 Token 等），此操作不可撤销",
+                clearActionHint = "将清空 Rival 相关配置（保留 Token / OAuth 凭据），此操作不可撤销",
                 onUnlock = { input ->
                     // 双通道校验：SHA-256 哈希或加密字段（以口令 hash 为准解密）任一通过即可
                     val ok = ConfigTransfer.verifyUnlockCode(input, config.noReshareUnlockCodeHash) ||
@@ -260,29 +260,16 @@ fun SettingCompose() {
                     ok
                 },
                 onClear = {
-                    // 清除相关配置项：就地恢复默认值（保持本地 config 引用有效），并解除锁
-                    val fresh = ConfigStorage()
-                    config.divingfishToken = fresh.divingfishToken
-                    config.lxnsToken = fresh.lxnsToken
-                    config.lxnsOAuthAccessToken = fresh.lxnsOAuthAccessToken
-                    config.lxnsOAuthRefreshToken = fresh.lxnsOAuthRefreshToken
-                    config.lxnsOAuthAccessTokenExpireAt = fresh.lxnsOAuthAccessTokenExpireAt
-                    config.lxnsOAuthPkceVerifier = fresh.lxnsOAuthPkceVerifier
-                    config.rivalSyncConfig = fresh.rivalSyncConfig
-                    config.syncConfig = fresh.syncConfig
-                    config.localConfig = fresh.localConfig
-                    config.userInfo = fresh.userInfo
-                    config.scoreDisplayType = fresh.scoreDisplayType
-                    config.scoreStyleType = fresh.scoreStyleType
-                    config.lxnsRomVersionThreshold = fresh.lxnsRomVersionThreshold
+                    // 清除相关配置：仅清空 Rival 相关配置并解除锁，保留 Token / OAuth 凭据
+                    config.rivalSyncConfig = RivalSyncConfig()
                     config.hideRivalConfig = false
-                    config.noReshare = false
                     config.rivalUnlockCodeHash = ""
-                    config.noReshareUnlockCodeHash = ""
                     config.rivalUnlockData = ""
+                    config.noReshare = false
+                    config.noReshareUnlockCodeHash = ""
                     config.noReshareUnlockData = ""
                     application.configManager.save()
-                    sendMessageToUi("已清除配置并解除禁止二次分享")
+                    sendMessageToUi("已清除 Rival 配置并解除禁止二次分享")
                 },
                 onDismiss = { showUnlockNoReshareDialog = false }
             )
