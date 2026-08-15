@@ -779,18 +779,6 @@ fun SettingCompose() {
                             "清除缓存成功, 释放了${clearSize / 1024 / 1024}MB缓存",
                         )
                     }
-                    if (config.noReshare) {
-                        TextButtonItem(
-                            modifier = Modifier
-                                .padding(start = 15.dp, top = 5.dp, end = 15.dp, bottom = 5.dp)
-                                .fillMaxWidth()
-                                .wrapContentHeight(),
-                            title = "解除禁止二次分享",
-                            description = "该配置禁止二次分享；输入口令或清除相关配置后可恢复导出"
-                        ) {
-                            showUnlockNoReshareDialog = true
-                        }
-                    }
                 }
             }
             item {
