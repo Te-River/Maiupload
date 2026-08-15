@@ -88,8 +88,11 @@ object ConfigTransfer {
         // 5. 分享锁
         var hideRivalConfig: Boolean = false,
         var noReshare: Boolean = false,
+        // 双通道并存：SHA-256 哈希（快速校验）+ PBKDF2(hash)+AES-GCM 加密字段（以口令 hash 为准解密）
         var rivalUnlockCodeHash: String = "",
         var noReshareUnlockCodeHash: String = "",
+        var rivalUnlockData: String = "",
+        var noReshareUnlockData: String = "",
     )
 
     @Serializable
@@ -251,11 +254,13 @@ object ConfigTransfer {
             localConfig = cfg.localConfig,
             // 4. 用户信息
             userInfo = cfg.userInfo,
-            // 5. 分享锁
+            // 5. 分享锁（双通道并存：哈希 + 加密字段）
             hideRivalConfig = hideRivalConfig,
             noReshare = noReshare,
             rivalUnlockCodeHash = hashUnlockCode(rivalUnlockCode),
             noReshareUnlockCodeHash = hashUnlockCode(noReshareUnlockCode),
+            rivalUnlockData = encryptUnlockData(rivalUnlockCode),
+            noReshareUnlockData = encryptUnlockData(noReshareUnlockCode),
         )
     }
 
@@ -315,9 +320,12 @@ object ConfigTransfer {
         }
     }
 
-    // ---- 解除口令哈希 ----
+    // ---- 解除口令校验（双通道并存：SHA-256 哈希 + 加密字段）----
 
-    /** 对解除口令做 SHA-256 十六进制哈希；口令为空返回空串（表示未设口令）。 */
+    /**
+     * 通道一：对解除口令做 SHA-256 十六进制哈希；口令为空返回空串（表示未设口令）。
+     * 随文件保存，用于快速校验口令。
+     */
     fun hashUnlockCode(code: String): String {
         if (code.isBlank()) return ""
         val digest = MessageDigest.getInstance("SHA-256").digest(code.toByteArray(Charsets.UTF_8))
@@ -327,6 +335,69 @@ object ConfigTransfer {
     /** 校验输入口令是否与存储的哈希匹配。存储哈希为空串时，任何输入都算不匹配（走清除解除）。 */
     fun verifyUnlockCode(input: String, storedHash: String): Boolean =
         storedHash.isNotEmpty() && hashUnlockCode(input) == storedHash
+
+    // ---- 解除口令加密字段 ----
+
+    /** 解锁字段固定明文：导出方设口令时用口令派生密钥加密该 magic；口令正确即可解密比对。 */
+    private const val UNLOCK_MAGIC = "MaiuploadUnlock2026"
+    private const val PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256"
+    private const val PBKDF2_ITERATIONS = 100_000
+    private const val SALT_LENGTH_BYTES = 16
+
+    /**
+     * 通道二：用解除口令加密解锁字段（AES-256-GCM，密钥由 PBKDF2 派生）。
+     * **PBKDF2 的口令输入以 SHA-256 哈希为准**：先 [hashUnlockCode] 再派生密钥，口令本身不落盘。
+     * 返回 "base64(salt):base64(iv):base64(ciphertext)"；口令为空返回空串（表示未设口令）。
+     *
+     * 与 [verifyUnlockCode] 并存：两个通道任一校验通过即可解锁。
+     */
+    fun encryptUnlockData(code: String): String {
+        if (code.isBlank()) return ""
+        return try {
+            val salt = ByteArray(SALT_LENGTH_BYTES).also { java.security.SecureRandom().nextBytes(it) }
+            val key = pbkdf2Key(hashUnlockCode(code), salt)
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+            val iv = cipher.iv
+            val ct = cipher.doFinal(UNLOCK_MAGIC.toByteArray(Charsets.UTF_8))
+            "${Base64.encodeToString(salt, B64_FLAGS)}:" +
+                "${Base64.encodeToString(iv, B64_FLAGS)}:" +
+                Base64.encodeToString(ct, B64_FLAGS)
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /**
+     * 校验输入口令是否能解出解锁字段。存储密文为空时（未设口令）任何输入都算不匹配（走清除解除）。
+     * 解密同样以 [hashUnlockCode] 为准派生密钥；口令错误时 AES-GCM 认证失败或解密结果与
+     * [UNLOCK_MAGIC] 不一致，均返回 false。
+     */
+    fun verifyUnlockData(input: String, storedData: String): Boolean {
+        if (storedData.isBlank()) return false
+        return try {
+            val parts = storedData.split(":")
+            if (parts.size != 3) return false
+            val salt = Base64.decode(parts[0], B64_FLAGS)
+            val iv = Base64.decode(parts[1], B64_FLAGS)
+            val ct = Base64.decode(parts[2], B64_FLAGS)
+            val key = pbkdf2Key(hashUnlockCode(input), salt)
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            val spec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
+            cipher.init(Cipher.DECRYPT_MODE, key, spec)
+            val plain = cipher.doFinal(ct)
+            plain.contentEquals(UNLOCK_MAGIC.toByteArray(Charsets.UTF_8))
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** PBKDF2 派生 AES-256 密钥（口令哈希 + 随机 salt，防彩虹表）。 */
+    private fun pbkdf2Key(codeHash: String, salt: ByteArray): SecretKeySpec {
+        val factory = javax.crypto.SecretKeyFactory.getInstance(PBKDF2_ALGORITHM)
+        val spec = javax.crypto.spec.PBEKeySpec(codeHash.toCharArray(), salt, PBKDF2_ITERATIONS, 256)
+        return SecretKeySpec(factory.generateSecret(spec).encoded, "AES")
+    }
 
     // ---- 导入 ----
 
@@ -397,6 +468,8 @@ object ConfigTransfer {
             if (payloadObj.noReshare) cfg.noReshare = true
             if (payloadObj.rivalUnlockCodeHash.isNotEmpty()) cfg.rivalUnlockCodeHash = payloadObj.rivalUnlockCodeHash
             if (payloadObj.noReshareUnlockCodeHash.isNotEmpty()) cfg.noReshareUnlockCodeHash = payloadObj.noReshareUnlockCodeHash
+            if (payloadObj.rivalUnlockData.isNotEmpty()) cfg.rivalUnlockData = payloadObj.rivalUnlockData
+            if (payloadObj.noReshareUnlockData.isNotEmpty()) cfg.noReshareUnlockData = payloadObj.noReshareUnlockData
             application.configManager.save()
 
             if (versionTooHigh) ImportResult.VersionTooHigh(bundle.appVersion)

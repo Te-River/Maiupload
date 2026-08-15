@@ -254,14 +254,17 @@ fun RivalSettingCompose(onBack: () -> Unit) {
         UnlockDialog(
             title = "解除隐藏Rival配置",
             description = "输入导出方提供的解除口令；忘记口令可通过清除相关配置解除（将清空全部 Rival 字段）。",
-            hasCode = config.rivalUnlockCodeHash.isNotEmpty(),
-            clearActionName = "清除Rival配置并解除",
+            hasCode = config.rivalUnlockCodeHash.isNotEmpty() || config.rivalUnlockData.isNotEmpty(),
+            clearActionName = "清除并解除",
             clearActionHint = "将清空机台号/服务器网址/加密参数/userId 等全部 Rival 字段，此操作不可恢复",
             onUnlock = { input ->
-                val ok = ConfigTransfer.verifyUnlockCode(input, config.rivalUnlockCodeHash)
+                // 双通道校验：SHA-256 哈希或加密字段（以口令 hash 为准解密）任一通过即可
+                val ok = ConfigTransfer.verifyUnlockCode(input, config.rivalUnlockCodeHash) ||
+                    ConfigTransfer.verifyUnlockData(input, config.rivalUnlockData)
                 if (ok) {
                     config.hideRivalConfig = false
                     config.rivalUnlockCodeHash = ""
+                    config.rivalUnlockData = ""
                     application.configManager.save()
                     sendMessageToUi("已解除隐藏Rival配置")
                 }
@@ -272,6 +275,7 @@ fun RivalSettingCompose(onBack: () -> Unit) {
                 config.rivalSyncConfig = RivalSyncConfig()
                 config.hideRivalConfig = false
                 config.rivalUnlockCodeHash = ""
+                config.rivalUnlockData = ""
                 application.configManager.save()
                 // 同步刷新本页镜像 state，避免残留旧值
                 keychip = ""

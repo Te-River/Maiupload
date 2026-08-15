@@ -243,14 +243,17 @@ fun SettingCompose() {
             UnlockDialog(
                 title = "解除禁止二次分享",
                 description = "输入导出方提供的解除口令；忘记口令可清除相关配置解除（将恢复默认设置）。",
-                hasCode = config.noReshareUnlockCodeHash.isNotEmpty(),
-                clearActionName = "清除配置并解除",
+                hasCode = config.noReshareUnlockCodeHash.isNotEmpty() || config.noReshareUnlockData.isNotEmpty(),
+                clearActionName = "清除并解除",
                 clearActionHint = "将恢复所有设置为默认值（含 Token 等），此操作不可撤销",
                 onUnlock = { input ->
-                    val ok = ConfigTransfer.verifyUnlockCode(input, config.noReshareUnlockCodeHash)
+                    // 双通道校验：SHA-256 哈希或加密字段（以口令 hash 为准解密）任一通过即可
+                    val ok = ConfigTransfer.verifyUnlockCode(input, config.noReshareUnlockCodeHash) ||
+                        ConfigTransfer.verifyUnlockData(input, config.noReshareUnlockData)
                     if (ok) {
                         config.noReshare = false
                         config.noReshareUnlockCodeHash = ""
+                        config.noReshareUnlockData = ""
                         application.configManager.save()
                         sendMessageToUi("已解除禁止二次分享")
                     }
@@ -276,6 +279,8 @@ fun SettingCompose() {
                     config.noReshare = false
                     config.rivalUnlockCodeHash = ""
                     config.noReshareUnlockCodeHash = ""
+                    config.rivalUnlockData = ""
+                    config.noReshareUnlockData = ""
                     application.configManager.save()
                     sendMessageToUi("已清除配置并解除禁止二次分享")
                 },
@@ -819,7 +824,8 @@ fun SettingCompose() {
                         description = "导出成绩抓取/展示/本地设置与用户信息（不含Userid），可选隐藏Rival/禁止二次分享"
                     ) {
                         if (config.noReshare) {
-                            sendMessageToUi("该配置禁止二次分享，无法导出")
+                            // 禁止二次分享锁生效：直接弹出解除对话框（口令校验或清除配置解除）
+                            showUnlockNoReshareDialog = true
                         } else {
                             showExportConfigDialog = true
                         }

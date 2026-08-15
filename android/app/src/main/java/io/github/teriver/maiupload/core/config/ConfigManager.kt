@@ -96,6 +96,9 @@ data class StoredConfig(
     // 解除口令的 SHA-256 哈希（空串 = 导出方未设口令，解除仅需确认）。
     var rivalUnlockCodeHash: String = "",
     var noReshareUnlockCodeHash: String = "",
+    // 解除口令的加密字段（PBKDF2(口令hash)+AES-GCM 密文，双通道之一，以口令 hash 为准解密）。
+    var rivalUnlockData: String = "",
+    var noReshareUnlockData: String = "",
 ) {
     companion object {
         fun fromConfig(cfg: ConfigStorage): StoredConfig = StoredConfig(
@@ -120,6 +123,8 @@ data class StoredConfig(
             noReshare = cfg.noReshare,
             rivalUnlockCodeHash = cfg.rivalUnlockCodeHash,
             noReshareUnlockCodeHash = cfg.noReshareUnlockCodeHash,
+            rivalUnlockData = cfg.rivalUnlockData,
+            noReshareUnlockData = cfg.noReshareUnlockData,
         )
     }
 
@@ -151,6 +156,8 @@ data class StoredConfig(
             noReshare = noReshare,
             rivalUnlockCodeHash = rivalUnlockCodeHash,
             noReshareUnlockCodeHash = noReshareUnlockCodeHash,
+            rivalUnlockData = rivalUnlockData,
+            noReshareUnlockData = noReshareUnlockData,
         )
     }
 }
@@ -192,6 +199,9 @@ data class ConfigStorage(
     // 解除口令的 SHA-256 哈希（空串 = 导出方未设口令，解除仅需确认）。
     var rivalUnlockCodeHash: String = "",
     var noReshareUnlockCodeHash: String = "",
+    // 解除口令的加密字段（PBKDF2(口令hash)+AES-GCM 密文，双通道之一，以口令 hash 为准解密）。
+    var rivalUnlockData: String = "",
+    var noReshareUnlockData: String = "",
 )
 
 /**
