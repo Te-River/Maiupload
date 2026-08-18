@@ -6,6 +6,7 @@ import java.io.IOException;
 
 import fi.iki.elonen.NanoHTTPD;
 import io.github.teriver.maiupload.GlobalViewModel;
+import io.github.teriver.maiupload.core.prober.divingfish.DivingFishOAuthUtil;
 import io.github.teriver.maiupload.core.utils.WechatRequestUtil;
 
 
@@ -26,7 +27,14 @@ public class HttpServer extends NanoHTTPD {
     @Override
     public Response serve(IHTTPSession session) {
         Log.d(TAG, "Serve request: " + session.getUri());
-        if (session.getUri().equals("/auth/maimai")) {
+        if (session.getUri().equals("/divingfish/oauth/callback")) {
+            // 水鱼 OAuth 本地回调：浏览器授权后跳回本地址，携带 code + state，
+            // 交给 Kotlin 侧换 token（PKCE 无需 client_secret），返回结果页给浏览器。
+            String code = session.getParms().get("code");
+            String state = session.getParms().get("state");
+            String html = DivingFishOAuthUtil.handleLocalCallback(code, state);
+            return newFixedLengthResponse(Response.Status.OK, MIME_HTML, html);
+        } else if (session.getUri().equals("/auth/maimai")) {
             if (GlobalViewModel.INSTANCE.getMaimaiHooking()) {
                 return onHooking();
             }

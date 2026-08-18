@@ -15,12 +15,16 @@ import io.github.teriver.maiupload.core.prober.models.divingfish.DivingFishGetCh
 import io.github.teriver.maiupload.core.prober.models.divingfish.DivingFishGetMaimaiScoresResponse
 import io.github.teriver.maiupload.core.prober.models.divingfish.DivingFishMaimaiScoreBody
 import io.github.teriver.maiupload.core.prober.models.divingfish.DivingFishPlayerProfile
+import io.github.teriver.maiupload.core.prober.divingfish.DivingFishOAuthUtil
+import io.github.teriver.maiupload.core.prober.divingfish.DivingFishOAuthUserInfo
 import io.github.teriver.maiupload.core.utils.ParseScorePageUtil
 import io.github.teriver.maiupload.core.utils.DebugLog
 import io.github.teriver.maiupload.core.utils.ErrorLog
+import io.github.teriver.maiupload.ui.compose.sync.SyncViewModel
 import io.ktor.client.call.body
 import kotlinx.serialization.json.Json
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -32,11 +36,43 @@ import io.ktor.http.contentType
 class DivingFishProberUtil : IProberUtil {
     private val baseApiUrl = "https://www.diving-fish.com/api"
 
+    /**
+     * 按当前 Token 输入模式解析请求头：OAuth 模式（divingfishTokenInputMode==1）走
+     * `Authorization: Bearer <access_token>`（必要时刷新），Token 模式沿用
+     * `Import-Token: <importToken>`。返回 null 表示 OAuth 失效需重新授权。
+     */
+    private suspend fun resolveAuthHeader(importToken: String, forceRefresh: Boolean = false): Pair<String, String>? {
+        return if (SyncViewModel.divingfishTokenInputMode == 1) {
+            val accessToken = DivingFishOAuthUtil.ensureValidAccessToken(force = forceRefresh)
+                ?: return null
+            "Authorization" to "Bearer $accessToken"
+        } else {
+            "Import-Token" to importToken
+        }
+    }
+
     override suspend fun updateUserInfo(importToken: String) {
-        val resp = client.get("https://www.diving-fish.com/api/maimaidxprober/player/profile") {
-            headers {
-                append("Import-Token", importToken)
+        val auth = resolveAuthHeader(importToken) ?: run {
+            sendMessageToUi("水鱼授权已失效，请重新授权")
+            return
+        }
+        // OAuth 模式：/player/profile 端点不支持 Bearer，改用 OIDC userinfo 端点取用户名
+        if (SyncViewModel.divingfishTokenInputMode == 1) {
+            val resp = client.get("https://auth.diving-fish.com/oauth/userinfo") {
+                header(auth.first, auth.second)
             }
+            if (resp.status.value == 200) {
+                val info = resp.body<DivingFishOAuthUserInfo>()
+                application.configManager.config.userInfo.name =
+                    info.preferred_username.ifEmpty { info.name.ifEmpty { info.nickname } }
+                application.configManager.save()
+            } else {
+                sendMessageToUi("同步用户信息失败: ${resp.bodyAsText()}")
+            }
+            return
+        }
+        val resp = client.get("https://www.diving-fish.com/api/maimaidxprober/player/profile") {
+            header(auth.first, auth.second)
         }
         val data = resp.body<DivingFishPlayerProfile>()
         application.configManager.config.userInfo.name = data.username
@@ -89,9 +125,13 @@ class DivingFishProberUtil : IProberUtil {
             )
             var ok = false
             try {
+                val auth = resolveAuthHeader(importToken) ?: run {
+                    sendMessageToUi("水鱼授权已失效，请重新授权")
+                    return false
+                }
                 val postResult = client.post("$baseApiUrl/maimaidxprober/player/update_records") {
                     headers {
-                        append("Import-Token", importToken)
+                        append(auth.first, auth.second)
                         append(HttpHeaders.ContentType, "application/json")
                     }
                     contentType(ContentType.Application.Json)
@@ -117,6 +157,10 @@ class DivingFishProberUtil : IProberUtil {
         fetchMaimaiScorePage(authUrl) { diff, body ->
             DebugLog.log("I", "DivingFishProberUtil", "正在上传${diff.diffName}成绩到水鱼查分器")
             try {
+                val auth = resolveAuthHeader(importToken) ?: run {
+                    sendMessageToUi("水鱼授权已失效，请重新授权")
+                    return@fetchMaimaiScorePage
+                }
                 val result = client.post("$baseApiUrl/pageparser/page") {
                     headers {
                         append(HttpHeaders.ContentType, "text/plain")
@@ -161,7 +205,7 @@ class DivingFishProberUtil : IProberUtil {
 
                 val postResult = client.post("$baseApiUrl/maimaidxprober/player/update_records") {
                     headers {
-                        append("Import-Token", importToken)
+                        append(auth.first, auth.second)
                         append(HttpHeaders.ContentType, "application/json")
                     }
                     contentType(ContentType.Application.Json)
@@ -195,9 +239,13 @@ class DivingFishProberUtil : IProberUtil {
             DebugLog.log("I", "DivingFishProberUtil", "正在上传${diff.diffName}成绩到水鱼查分器")
             val recentParam = if (diff.diffName.lowercase().contains("recent")) "?recent=1" else ""
             try {
+                val auth = resolveAuthHeader(importToken) ?: run {
+                    sendMessageToUi("水鱼授权已失效，请重新授权")
+                    return@fetchChuniScores
+                }
                 client.post("$baseApiUrl/chunithmprober/player/update_records_html$recentParam") {
                     headers {
-                        append("Import-Token", importToken)
+                        append(auth.first, auth.second)
                         append(HttpHeaders.ContentType, "text/plain")
                     }
                     contentType(ContentType.Text.Plain)
@@ -224,9 +272,13 @@ class DivingFishProberUtil : IProberUtil {
 
     override suspend fun getMaimaiProberData(importToken: String): List<MaimaiScoreEntity> {
         try {
+            val auth = resolveAuthHeader(importToken) ?: run {
+                sendMessageToUi("水鱼授权已失效，请重新授权")
+                return emptyList()
+            }
             val result = client.get("$baseApiUrl/maimaidxprober/player/records") {
                 headers {
-                    append("Import-Token", importToken)
+                    append(auth.first, auth.second)
                 }
             }
             val body = result.body<DivingFishGetMaimaiScoresResponse>()
@@ -263,9 +315,13 @@ class DivingFishProberUtil : IProberUtil {
 
     override suspend fun getChuniProberData(importToken: String): List<ChuniScoreEntity> {
         try {
+            val auth = resolveAuthHeader(importToken) ?: run {
+                sendMessageToUi("水鱼授权已失效，请重新授权")
+                return emptyList()
+            }
             val result = client.get("$baseApiUrl/chunithmprober/player/records") {
                 headers {
-                    append("Import-Token", importToken)
+                    append(auth.first, auth.second)
                 }
             }
             val body = result.body<DivingFishGetChuniSCoreResponse>()

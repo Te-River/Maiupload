@@ -82,6 +82,11 @@ data class StoredConfig(
     var lxnsOAuthRefreshToken_enc: String = "",
     var lxnsOAuthAccessTokenExpireAt: Long = 0,
     var lxnsOAuthPkceVerifier_enc: String = "",
+    var divingfishOAuthAccessToken_enc: String = "",
+    var divingfishOAuthRefreshToken_enc: String = "",
+    var divingfishOAuthAccessTokenExpireAt: Long = 0,
+    var divingfishOAuthPkceVerifier_enc: String = "",
+    var divingfishOAuthState: String = "",
     var rivalSyncConfig_enc: String = "",
     // ---- 明文字段 ----
     var syncConfig: SyncConfig = SyncConfig(),
@@ -108,6 +113,11 @@ data class StoredConfig(
             lxnsOAuthRefreshToken_enc = ConfigCrypto.encrypt(cfg.lxnsOAuthRefreshToken),
             lxnsOAuthAccessTokenExpireAt = cfg.lxnsOAuthAccessTokenExpireAt,
             lxnsOAuthPkceVerifier_enc = ConfigCrypto.encrypt(cfg.lxnsOAuthPkceVerifier),
+            divingfishOAuthAccessToken_enc = ConfigCrypto.encrypt(cfg.divingfishOAuthAccessToken),
+            divingfishOAuthRefreshToken_enc = ConfigCrypto.encrypt(cfg.divingfishOAuthRefreshToken),
+            divingfishOAuthAccessTokenExpireAt = cfg.divingfishOAuthAccessTokenExpireAt,
+            divingfishOAuthPkceVerifier_enc = ConfigCrypto.encrypt(cfg.divingfishOAuthPkceVerifier),
+            divingfishOAuthState = cfg.divingfishOAuthState,
             rivalSyncConfig_enc = if (cfg.rivalSyncConfig.hasSecrets()) {
                 ConfigCrypto.encrypt(JSON.encodeToString(RivalSyncConfig.serializer(), cfg.rivalSyncConfig))
             } else {
@@ -145,6 +155,11 @@ data class StoredConfig(
             lxnsOAuthRefreshToken = ConfigCrypto.decrypt(lxnsOAuthRefreshToken_enc),
             lxnsOAuthAccessTokenExpireAt = lxnsOAuthAccessTokenExpireAt,
             lxnsOAuthPkceVerifier = ConfigCrypto.decrypt(lxnsOAuthPkceVerifier_enc),
+            divingfishOAuthAccessToken = ConfigCrypto.decrypt(divingfishOAuthAccessToken_enc),
+            divingfishOAuthRefreshToken = ConfigCrypto.decrypt(divingfishOAuthRefreshToken_enc),
+            divingfishOAuthAccessTokenExpireAt = divingfishOAuthAccessTokenExpireAt,
+            divingfishOAuthPkceVerifier = ConfigCrypto.decrypt(divingfishOAuthPkceVerifier_enc),
+            divingfishOAuthState = divingfishOAuthState,
             rivalSyncConfig = rival,
             syncConfig = syncConfig,
             localConfig = localConfig,
@@ -184,6 +199,12 @@ data class ConfigStorage(
     var lxnsOAuthRefreshToken: String = "",
     var lxnsOAuthAccessTokenExpireAt: Long = 0, // epoch ms，access_token 过期时间
     var lxnsOAuthPkceVerifier: String = "", // PKCE code_verifier，getAuthorizeUrl 时生成，exchangeCodeForToken 后清空
+    // 水鱼 OAuth 令牌：OAuth 模式下优先使用，与 Import-Token 并存。
+    var divingfishOAuthAccessToken: String = "",
+    var divingfishOAuthRefreshToken: String = "",
+    var divingfishOAuthAccessTokenExpireAt: Long = 0, // epoch ms，access_token 过期时间
+    var divingfishOAuthPkceVerifier: String = "", // PKCE code_verifier，getAuthorizeUrl 时生成，exchangeCodeForToken 后清空
+    var divingfishOAuthState: String = "", // CSRF state，getAuthorizeUrl 时生成，回调校验后清空
     // 类型一（Rival 同步）配置：参考 Mizuki-plugin-Maimai-sync，全部留空由用户在设置页自填，
     // 不内置任何机台/鉴权/加密敏感信息。
     var rivalSyncConfig: RivalSyncConfig = RivalSyncConfig(),

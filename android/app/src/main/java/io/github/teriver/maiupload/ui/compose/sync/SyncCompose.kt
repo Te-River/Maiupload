@@ -45,6 +45,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import io.github.teriver.maiupload.Application.Companion.application
@@ -64,6 +66,7 @@ import io.github.teriver.maiupload.core.data.GameType
 import io.github.teriver.maiupload.core.data.chuni.ChuniScoreManager.writeChuniScoreCache
 import io.github.teriver.maiupload.core.data.maimai.MaimaiScoreManager.writeMaimaiScoreCache
 import io.github.teriver.maiupload.core.prober.ProberPlatform
+import io.github.teriver.maiupload.core.prober.divingfish.DivingFishOAuthUtil
 import io.github.teriver.maiupload.core.prober.lxns.LxnsOAuthUtil
 import io.github.teriver.maiupload.core.prober.rival.RivalSyncUtil
 import io.github.teriver.maiupload.core.prober.sendMessageToUi
@@ -106,7 +109,12 @@ fun SyncCompose() {
                 onRequest = {
                     val token = when (globalViewModel.proberPlatform) {
                         ProberPlatform.DIVING_FISH ->
-                            application.configManager.config.divingfishToken
+                            // 水鱼 OAuth 模式下用 access_token（prober 内部会自动刷新），
+                            // Token 模式沿用 Import-Token。
+                            if (SyncViewModel.divingfishTokenInputMode == 1)
+                                application.configManager.config.divingfishOAuthAccessToken
+                            else
+                                application.configManager.config.divingfishToken
                         // 落雪 OAuth 模式下用 access_token（prober 内部会自动刷新），
                         // Token 模式沿用 personal lxnsToken。
                         ProberPlatform.LXNS ->
@@ -147,7 +155,12 @@ fun SyncCompose() {
                 onRequest = {
                     val token = when (globalViewModel.proberPlatform) {
                         ProberPlatform.DIVING_FISH ->
-                            application.configManager.config.divingfishToken
+                            // 水鱼 OAuth 模式下用 access_token（prober 内部会自动刷新），
+                            // Token 模式沿用 Import-Token。
+                            if (SyncViewModel.divingfishTokenInputMode == 1)
+                                application.configManager.config.divingfishOAuthAccessToken
+                            else
+                                application.configManager.config.divingfishToken
                         // 落雪 OAuth 模式下用 access_token（prober 内部会自动刷新），
                         // Token 模式沿用 personal lxnsToken。
                         ProberPlatform.LXNS ->
@@ -282,11 +295,13 @@ fun SyncCompose() {
                 }
             }
 
-            // 落雪查分器选中时，在游戏选择行原位置渐次出现 OAuth / Token 切换按钮，
+            // 落雪/水鱼查分器选中时，在游戏选择行原位置渐次出现 OAuth / Token 切换按钮，
             // 游戏选择行随之被推下移；切到其它查分器时该行收缩消失，游戏行复位。
             // 用 AnimatedVisibility + expandVertically/shrinkVertically 实现下移动画。
+            val isLxnsSelected = globalViewModel.proberPlatform == ProberPlatform.LXNS
+            val isDfSelected = globalViewModel.proberPlatform == ProberPlatform.DIVING_FISH
             AnimatedVisibility(
-                visible = globalViewModel.proberPlatform == ProberPlatform.LXNS,
+                visible = isLxnsSelected || isDfSelected,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
@@ -296,13 +311,18 @@ fun SyncCompose() {
                         .padding(top = 8.dp)
                         .fillMaxWidth()
                 ) {
-                    val tokenInputMode = SyncViewModel.tokenInputMode
+                    // 水鱼/落雪各自记住自己的输入模式，互不影响
+                    val tokenInputMode = if (isLxnsSelected) SyncViewModel.tokenInputMode
+                    else SyncViewModel.divingfishTokenInputMode
                     SegmentedButton(
                         shape = SegmentedButtonDefaults.itemShape(
                             index = 0, count = 2
                         ),
                         selected = tokenInputMode == 1,
-                        onClick = { SyncViewModel.tokenInputMode = 1 }
+                        onClick = {
+                            if (isLxnsSelected) SyncViewModel.tokenInputMode = 1
+                            else SyncViewModel.divingfishTokenInputMode = 1
+                        }
                     ) {
                         Text("OAuth")
                     }
@@ -311,7 +331,10 @@ fun SyncCompose() {
                             index = 1, count = 2
                         ),
                         selected = tokenInputMode == 0,
-                        onClick = { SyncViewModel.tokenInputMode = 0 }
+                        onClick = {
+                            if (isLxnsSelected) SyncViewModel.tokenInputMode = 0
+                            else SyncViewModel.divingfishTokenInputMode = 0
+                        }
                     ) {
                         Text("Token")
                     }
@@ -340,20 +363,44 @@ fun SyncCompose() {
                 }
             }
 
-            // 落雪 + OAuth 模式：授权码输入框 + 前往授权 + 已授权状态 + 取消授权；
+            // 落雪/水鱼 + OAuth 模式：授权入口 + 已授权状态 + 取消授权；
             // 其它情况沿用原 Token 输入框。
             // 两侧都用 AnimatedVisibility + expand/shrinkVertically + fade，遵循 Material Motion，
-            // 切到落雪时 OAuth 那段渐次展开、Token 输入框渐次收起，切走时反过来，不瞬间蹦。
+            // 切到 OAuth 时那段渐次展开、Token 输入框渐次收起，切走时反过来，不瞬间蹦。
             val isLxnsOAuth =
                 globalViewModel.proberPlatform == ProberPlatform.LXNS &&
                     SyncViewModel.tokenInputMode == 1
+            val isDfOAuth =
+                globalViewModel.proberPlatform == ProberPlatform.DIVING_FISH &&
+                    SyncViewModel.divingfishTokenInputMode == 1
+            val isOAuthMode = isLxnsOAuth || isDfOAuth
             val coroutineScope = rememberCoroutineScope()
             var oauthCode by remember { mutableStateOf("") }
             var oauthExchanging by remember { mutableStateOf(false) }
-            val oauthAuthorized = remember { mutableStateOf(LxnsOAuthUtil.isAuthorized()) }
+            val oauthAuthorized = remember {
+                mutableStateOf(
+                    if (isDfOAuth) DivingFishOAuthUtil.isAuthorized()
+                    else LxnsOAuthUtil.isAuthorized()
+                )
+            }
+            // 水鱼 OAuth 走本地回调（127.0.0.1:8284）：浏览器授权后自动跳回换 token，
+            // 这里轮询 isAuthorized 把已授权状态刷回 UI（落雪是手动粘贴授权码，无需轮询）。
+            LaunchedEffect(isDfOAuth, oauthAuthorized.value) {
+                if (isDfOAuth && !oauthAuthorized.value) {
+                    val deadline = System.currentTimeMillis() + 5 * 60 * 1000
+                    while (System.currentTimeMillis() < deadline) {
+                        delay(2000)
+                        if (DivingFishOAuthUtil.isAuthorized()) {
+                            oauthAuthorized.value = true
+                            sendMessageToUi("水鱼授权成功")
+                            break
+                        }
+                    }
+                }
+            }
 
             AnimatedVisibility(
-                visible = isLxnsOAuth,
+                visible = isOAuthMode,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
@@ -372,7 +419,7 @@ fun SyncCompose() {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "已授权落雪（OAuth）",
+                                text = if (isDfOAuth) "已授权水鱼（OAuth）" else "已授权落雪（OAuth）",
                                 modifier = Modifier.padding(top = 15.dp)
                             )
                             Button(
@@ -380,9 +427,10 @@ fun SyncCompose() {
                                     .padding(15.dp)
                                     .size(300.dp, 50.dp),
                                 onClick = {
-                                    LxnsOAuthUtil.clearTokens()
+                                    if (isDfOAuth) DivingFishOAuthUtil.clearTokens()
+                                    else LxnsOAuthUtil.clearTokens()
                                     oauthAuthorized.value = false
-                                    sendMessageToUi("已取消落雪授权")
+                                    sendMessageToUi(if (isDfOAuth) "已取消水鱼授权" else "已取消落雪授权")
                                 }
                             ) {
                                 Text("取消授权")
@@ -403,50 +451,61 @@ fun SyncCompose() {
                                     .padding(15.dp)
                                     .size(300.dp, 50.dp),
                                 onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LxnsOAuthUtil.getAuthorizeUrl()))
-                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    application.startActivity(intent)
-                                }
-                            ) {
-                                Text("前往落雪授权")
-                            }
-
-                            OutlinedTextField(
-                                value = oauthCode,
-                                onValueChange = { oauthCode = it },
-                                singleLine = true,
-                                label = { Text("授权码") },
-                                modifier = Modifier
-                                    .padding(15.dp)
-                                    .fillMaxWidth(),
-                                enabled = !oauthExchanging
-                            )
-
-                            Button(
-                                modifier = Modifier
-                                    .padding(15.dp)
-                                    .size(300.dp, 50.dp),
-                                enabled = oauthCode.isNotBlank() && !oauthExchanging,
-                                onClick = {
-                                    oauthExchanging = true
-                                    coroutineScope.launch(Dispatchers.IO) {
-                                        val ok = LxnsOAuthUtil.exchangeCodeForToken(oauthCode)
-                                        oauthExchanging = false
-                                        if (ok) {
-                                            oauthAuthorized.value = true
-                                            oauthCode = ""
-                                        }
+                                    if (isDfOAuth) {
+                                        // 水鱼 OAuth 走本地回调：先确保本地 8284 端口在监听，再开授权页
+                                        application.startHttpServer()
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(DivingFishOAuthUtil.getAuthorizeUrl()))
+                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        application.startActivity(intent)
+                                    } else {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LxnsOAuthUtil.getAuthorizeUrl()))
+                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        application.startActivity(intent)
                                     }
                                 }
                             ) {
-                                Text(if (oauthExchanging) "换取中..." else "用授权码换取 Token")
+                                Text(if (isDfOAuth) "前往水鱼授权" else "前往落雪授权")
+                            }
+
+                            // 落雪为无回调(oob)流程，需手动粘贴授权码；水鱼走本地回调自动换 token，无需手动填
+                            if (!isDfOAuth) {
+                                OutlinedTextField(
+                                    value = oauthCode,
+                                    onValueChange = { oauthCode = it },
+                                    singleLine = true,
+                                    label = { Text("授权码") },
+                                    modifier = Modifier
+                                        .padding(15.dp)
+                                        .fillMaxWidth(),
+                                    enabled = !oauthExchanging
+                                )
+
+                                Button(
+                                    modifier = Modifier
+                                        .padding(15.dp)
+                                        .size(300.dp, 50.dp),
+                                    enabled = oauthCode.isNotBlank() && !oauthExchanging,
+                                    onClick = {
+                                        oauthExchanging = true
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            val ok = LxnsOAuthUtil.exchangeCodeForToken(oauthCode)
+                                            oauthExchanging = false
+                                            if (ok) {
+                                                oauthAuthorized.value = true
+                                                oauthCode = ""
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text(if (oauthExchanging) "换取中..." else "用授权码换取 Token")
+                                }
                             }
                         }
                     }
                 }
             }
             AnimatedVisibility(
-                visible = !isLxnsOAuth,
+                visible = !isOAuthMode,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
@@ -481,6 +540,16 @@ fun SyncCompose() {
                     enable = globalViewModel.proberPlatform != ProberPlatform.LOCAL,
                     horizontalDivider = false,
                 )
+                // 水鱼 Import-Token 迁移提示：OAuth 将取代 Import-Token，建议切到 OAuth 授权
+                if (globalViewModel.proberPlatform == ProberPlatform.DIVING_FISH &&
+                    SyncViewModel.divingfishTokenInputMode == 0
+                ) {
+                    Text(
+                        text = "水鱼 Import-Token 即将停用，建议切换到 OAuth 授权",
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }
@@ -545,7 +614,7 @@ fun SyncCompose() {
                                 .height(6.dp)
                         )
                     } else {
-                        Text("通过 Rivral 同步")
+                        Text("通过 Rival 同步")
                     }
                 }
             }
