@@ -148,6 +148,8 @@ object DivingFishOAuthUtil {
     /**
      * 用授权码 + code_verifier 换 access_token / refresh_token（PKCE，无需 client_secret）。
      * 先校验回调携带的 state（CSRF），成功后存入 ConfigStorage 并清空 code_verifier/state。
+     * 若用户在设置页填了 client_secret（机密客户端登记方式），换 token 时自动按
+     * client_secret_post 附加，见 [postTokenAndStore]。
      */
     suspend fun exchangeCodeForToken(code: String, state: String): Boolean {
         if (code.isBlank()) {
@@ -243,18 +245,29 @@ object DivingFishOAuthUtil {
     // ---- 内部 ----
 
     /**
-     * POST token 端点（form-urlencoded，公开客户端不传 client_secret）。
-     * 成功即把 access/refresh token 落盘；水鱼 refresh token 强制轮换，
+     * POST token 端点（form-urlencoded）。默认按公开客户端调用（不传 client_secret，PKCE 保证安全）；
+     * 若用户填了 client_secret（控制台按机密客户端登记），自动按 client_secret_post 方式附加，
+     * 兼容两种登记方式。成功即把 access/refresh token 落盘；水鱼 refresh token 强制轮换，
      * 响应里的新 refresh_token 必须先持久化，旧 token 立即作废。
      */
     private suspend fun postTokenAndStore(
         body: String,
         hint: String
     ): Boolean {
+        // 水鱼服务器实测：该 client_id 按机密客户端登记，公开客户端（无 secret）会被拒
+        // （invalid_client: cannot authenticate with methods 含 none）。
+        // 取 secret 优先级：用户在设置页填的配置字段 > BuildConfig 默认值。
+        val secret = application.configManager.config.divingfishOAuthClientSecret
+            .ifBlank { BuildConfig.DF_OAUTH_CLIENT_SECRET }
+        val finalBody = if (secret.isNotBlank()) {
+            "$body&client_secret=${URLEncoder.encode(secret, "UTF-8")}"
+        } else {
+            body
+        }
         return try {
             val resp = client.post(TOKEN_URL) {
                 contentType(ContentType.Application.FormUrlEncoded)
-                setBody(body)
+                setBody(finalBody)
             }
             val respText = resp.bodyAsText()
             if (resp.status.value != 200) {

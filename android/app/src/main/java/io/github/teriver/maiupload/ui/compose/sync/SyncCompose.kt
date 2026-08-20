@@ -377,6 +377,10 @@ fun SyncCompose() {
             val coroutineScope = rememberCoroutineScope()
             var oauthCode by remember { mutableStateOf("") }
             var oauthExchanging by remember { mutableStateOf(false) }
+            // 水鱼 client_secret（可选）：公开客户端留空；控制台按机密客户端登记时必须填
+            var dfClientSecret by remember {
+                mutableStateOf(application.configManager.config.divingfishOAuthClientSecret)
+            }
             val oauthAuthorized = remember {
                 mutableStateOf(
                     if (isDfOAuth) DivingFishOAuthUtil.isAuthorized()
@@ -465,6 +469,24 @@ fun SyncCompose() {
                                 }
                             ) {
                                 Text(if (isDfOAuth) "前往水鱼授权" else "前往落雪授权")
+                            }
+
+                            // 水鱼 client_secret（可选）：公开客户端（PKCE）留空即可；
+                            // 若控制台按机密客户端登记，此处必填（换 token 时自动附加）
+                            if (isDfOAuth) {
+                                OutlinedTextField(
+                                    value = dfClientSecret,
+                                    onValueChange = {
+                                        dfClientSecret = it
+                                        application.configManager.config.divingfishOAuthClientSecret = it
+                                        application.configManager.save()
+                                    },
+                                    singleLine = true,
+                                    label = { Text("client_secret（可选，机密客户端必填）") },
+                                    modifier = Modifier
+                                        .padding(15.dp)
+                                        .fillMaxWidth()
+                                )
                             }
 
                             // 落雪为无回调(oob)流程，需手动粘贴授权码；水鱼走本地回调自动换 token，无需手动填

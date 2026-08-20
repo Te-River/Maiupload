@@ -87,6 +87,7 @@ data class StoredConfig(
     var divingfishOAuthAccessTokenExpireAt: Long = 0,
     var divingfishOAuthPkceVerifier_enc: String = "",
     var divingfishOAuthState: String = "",
+    var divingfishOAuthClientSecret_enc: String = "",
     var rivalSyncConfig_enc: String = "",
     // ---- 明文字段 ----
     var syncConfig: SyncConfig = SyncConfig(),
@@ -118,6 +119,7 @@ data class StoredConfig(
             divingfishOAuthAccessTokenExpireAt = cfg.divingfishOAuthAccessTokenExpireAt,
             divingfishOAuthPkceVerifier_enc = ConfigCrypto.encrypt(cfg.divingfishOAuthPkceVerifier),
             divingfishOAuthState = cfg.divingfishOAuthState,
+            divingfishOAuthClientSecret_enc = ConfigCrypto.encrypt(cfg.divingfishOAuthClientSecret),
             rivalSyncConfig_enc = if (cfg.rivalSyncConfig.hasSecrets()) {
                 ConfigCrypto.encrypt(JSON.encodeToString(RivalSyncConfig.serializer(), cfg.rivalSyncConfig))
             } else {
@@ -160,6 +162,7 @@ data class StoredConfig(
             divingfishOAuthAccessTokenExpireAt = divingfishOAuthAccessTokenExpireAt,
             divingfishOAuthPkceVerifier = ConfigCrypto.decrypt(divingfishOAuthPkceVerifier_enc),
             divingfishOAuthState = divingfishOAuthState,
+            divingfishOAuthClientSecret = ConfigCrypto.decrypt(divingfishOAuthClientSecret_enc),
             rivalSyncConfig = rival,
             syncConfig = syncConfig,
             localConfig = localConfig,
@@ -205,6 +208,9 @@ data class ConfigStorage(
     var divingfishOAuthAccessTokenExpireAt: Long = 0, // epoch ms，access_token 过期时间
     var divingfishOAuthPkceVerifier: String = "", // PKCE code_verifier，getAuthorizeUrl 时生成，exchangeCodeForToken 后清空
     var divingfishOAuthState: String = "", // CSRF state，getAuthorizeUrl 时生成，回调校验后清空
+    // 水鱼 client_secret：公开客户端（PKCE）留空即可；若控制台按机密客户端登记则必须填写，
+    // 换 token 时按 client_secret_post 附加。加密存储。
+    var divingfishOAuthClientSecret: String = "",
     // 类型一（Rival 同步）配置：参考 Mizuki-plugin-Maimai-sync，全部留空由用户在设置页自填，
     // 不内置任何机台/鉴权/加密敏感信息。
     var rivalSyncConfig: RivalSyncConfig = RivalSyncConfig(),

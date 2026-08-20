@@ -41,9 +41,10 @@ android {
         // 落雪 OAuth 接入：client_id 为公共客户端标识（PKCE 授权，无需 client_secret），
         // 直接硬编码入 BuildConfig，无需环境变量注入。
         buildConfigField("String", "LXNS_OAUTH_CLIENT_ID", "\"991a6c5c-6f9f-46c9-99a8-a7ff2c904ac3\"")
-        // 水鱼 OAuth 接入：client_id 为公开客户端标识（PKCE 授权，无需 client_secret），
-        // 直接硬编码入 BuildConfig，无需环境变量注入。
+        // 水鱼 OAuth 接入：client_id 公开标识；控制台按机密客户端登记，client_secret 一并硬编码
+        // 入 BuildConfig，无需环境变量注入（PKCE 仍强制，secret 作 client_secret_post 兜底）。
         buildConfigField("String", "DF_OAUTH_CLIENT_ID", "\"6982e05cc35bce6621222f42a1705b28\"")
+        buildConfigField("String", "DF_OAUTH_CLIENT_SECRET", "\"xC3jyneDXWDAx_MvhGNS7DxTf2aUAaY6gig0sDHWQZ4\"")
         // 全局默认 false，snapshot buildType 覆写为 true
         buildConfigField("boolean", "IS_SNAPSHOT", "false")
     }
