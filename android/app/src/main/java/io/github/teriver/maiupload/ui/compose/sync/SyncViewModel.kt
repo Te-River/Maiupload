@@ -20,7 +20,7 @@ object SyncViewModel : ViewModel() {
     /**
      * 水鱼 Token 输入方式：0 = 直接输入 Import-Token，1 = OAuth 授权流程。
      * 独立于落雪的 tokenInputMode（各自记住自己的模式）。
-     * 默认 Token（0），兼容现有用 Import-Token 的存量用户；切到 OAuth 需先授权。
+     * 默认 OAuth（1），与水鱼 OAuth 迁移方向一致；需要 Import-Token 时可手动切回 Token。
      */
-    var divingfishTokenInputMode by mutableStateOf(0)
+    var divingfishTokenInputMode by mutableStateOf(1)
 }
